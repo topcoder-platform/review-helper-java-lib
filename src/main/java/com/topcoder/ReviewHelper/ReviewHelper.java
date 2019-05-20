@@ -1,5 +1,10 @@
 package com.topcoder.ReviewHelper;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.util.Properties;
+
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
@@ -16,26 +21,45 @@ import com.appirio.tech.core.api.v3.util.jwt.JWTTokenGenerator;
 
 public class ReviewHelper {
 
-	public static String getToken(String clientId, String clientSecret, String audience, String m2mAuthDomain)
-			throws Exception {
-		JWTTokenGenerator jwtTokenGenerator = JWTTokenGenerator.getInstance(clientId, clientSecret, audience,
-				m2mAuthDomain, 30, null);
+	String clientId = "";
+	String clientSecret = "";
+	String audience = "";
+	String m2mAuthDomain = "";
+	String tcDomain = "";
+
+	private static Properties loadPropertyFile() throws Exception {
+		Properties props = new Properties();
+		FileInputStream in = new FileInputStream("toekn.properties");
+		props.load(in);
+		in.close();
+
+		return props;
+	}
+
+	// String clientId, String clientSecret, String audience, String m2mAuthDomain
+	public static String getToken() throws Exception {
+		Properties props = loadPropertyFile();
+
+		JWTTokenGenerator jwtTokenGenerator = JWTTokenGenerator.getInstance(props.getProperty("clientId"),
+				props.getProperty("clientSecret"), props.getProperty("audience"), props.getProperty("m2mAuthDomain"),
+				30, null);
 		String token = jwtTokenGenerator.getMachineToken();
 		return token;
 	}
 
 	public static String generateReview(JSONObject postJSON, String testPhase, String token) throws Exception {
 
+		Properties props = loadPropertyFile();
 		Client client = ClientBuilder.newClient();
 
 		Response response;
 		if (testPhase == "system") {
-			WebTarget webTarget = client.target("http://api.topcoder.com/v5/reviewSummations");
+			WebTarget webTarget = client.target(props.getProperty("tcDomain") + "/reviewSummations");
 
 			response = webTarget.request(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
 					.header("Authorization", "Bearer " + token).post(Entity.json(postJSON));
 		} else {
-			WebTarget webTarget = client.target("http://api.topcoder.com/v5/reviews");
+			WebTarget webTarget = client.target(props.getProperty("tcDomain") + "/reviews");
 
 			response = webTarget.request(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
 					.header("Authorization", "Bearer " + token).post(Entity.json(postJSON));
@@ -50,16 +74,17 @@ public class ReviewHelper {
 
 	}
 
-	public static JSONArray getReviews(String challengeId, String token) {
+	public static JSONArray getReviews(String challengeId, String token) throws Exception {
 
+		Properties props = loadPropertyFile();
 		JSONArray reviews = new JSONArray();
 		JSONObject memberReviews = new JSONObject();
 
 		try {
 
 			Client client = ClientBuilder.newClient();
-			WebTarget webTarget = client
-					.target("http://api.topcoder.com/v5/submissions/?challengeId=" + challengeId + "&perPage=100");
+			WebTarget webTarget = client.target(
+					props.getProperty("tcDomain") + "/submissions/?challengeId=" + challengeId + "&perPage=100");
 
 			Response response = webTarget.request(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
 					.header("Authorization", "Bearer " + token).get();
@@ -86,7 +111,7 @@ public class ReviewHelper {
 
 				for (Object review : reviewArray) {
 					JSONObject jsonReview = (JSONObject) review;
-					if (!jsonReview.get("typeId").equals("55bbb17d-aac2-45a6-89c3-a8d102863d05")) {
+					if (!jsonReview.get("typeId").equals(props.getProperty("avScanTypeId"))) {
 						tempJSONArray = (JSONArray) memberReviews.get(memberId);
 						tempJSONArray.add(review);
 					}
